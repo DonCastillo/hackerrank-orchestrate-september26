@@ -1,4 +1,5 @@
-# The decision engine (loader/state/forecast/planner/validate) is stdlib-only.
-# These are needed only for the LLM evidence layer (messages + images) and .env loading.
-anthropic>=0.40.0
-python-dotenv>=1.0.0
+# Direct dependencies, pinned. The decision engine itself is stdlib-only;
+# these are needed only for the LLM evidence layer (messages + images) and .env loading.
+# Full transitive lock: code/requirements.lock.txt (used by bootstrap.py).
+anthropic==1.5.0
+python-dotenv==1.2.3

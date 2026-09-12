@@ -1,0 +1,14 @@
+[project]
+name = "buy-or-wait"
+version = "0.1.0"
+description = "HackerRank Orchestrate (Sept 2026) - Buy or Wait? financial decision agent"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic==1.5.0",
+    "python-dotenv==1.2.3",
+]
+
+[tool.buy-or-wait]
+# Everything in code/ is written against the Python 3.10+ stdlib.
+# Use `python bootstrap.py` to create an isolated .venv and run the engine.
+entry = "code/main.py"

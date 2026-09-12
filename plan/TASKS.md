@@ -8,7 +8,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 0 — Setup (~30 min)
 
-- [x] Confirm Python 3 + `pip`; create `code/requirements.txt` (stdlib-only for the engine; `anthropic` + `python-dotenv` for the LLM layer) — Python 3.14, venv at `.venv/`, anthropic 1.5.0
+- [x] Confirm Python 3 + `pip`; create `code/requirements.txt` (stdlib-only for the engine; `anthropic` + `python-dotenv` for the LLM layer) — Python 3.14 locally; `pyproject.toml` requires >=3.10; exact pins in `code/requirements.lock.txt`; `python bootstrap.py` creates `.venv/` + installs + runs on any OS
 - [x] Create `.env.example` with `ANTHROPIC_API_KEY=` (never commit `.env`; confirm `.gitignore` covers `.env` and `log.txt`)
 - [ ] Scaffold `code/` modules:
   - [ ] `code/main.py` — CLI entry: `python3 code/main.py [--limit N] [--request-ids ...] [--no-llm]` → writes root `output.csv`
