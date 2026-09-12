@@ -1,0 +1,4 @@
+# The decision engine (loader/state/forecast/planner/validate) is stdlib-only.
+# These are needed only for the LLM evidence layer (messages + images) and .env loading.
+anthropic>=0.40.0
+python-dotenv>=1.0.0
