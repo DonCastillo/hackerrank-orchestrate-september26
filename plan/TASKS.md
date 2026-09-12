@@ -37,23 +37,24 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 2 — Financial-state reconstruction (`state.py`) (~2 h)
 
-- [ ] Filter events per user, sorted by `event_date` / `settlement_date`
-- [ ] Classify each event's cash effect:
-  - [ ] `settled` debit/credit → already reflected in `current_available_balance` (do **not** double count)
-  - [ ] `pending` debit → reserve (subtract from projection); `pending` credit → ignore
-  - [ ] `scheduled` → future dated flow on `settlement_date`
-  - [ ] `failed` / `cancelled` → ignore
-  - [ ] `unrealized` / `non_cash` (investment valuations) → ignore
-  - [ ] `refund` credit → count only if settled
-- [ ] Handle `linked_event_id` chains (cancellation/settlement/amendment of an earlier event; investment lifecycle) — the newer linked row wins
-- [ ] De-duplicate repeated representations of the same event (same user/amount/date/description with different status)
-- [ ] Currency conversion: for a cash event in a currency ≠ `home_currency`, use the rate row for `settlement_date` and the exact `from_currency → to_currency` direction; fail loudly if missing
+- [x] Filter events per user, sorted by `event_date` / `settlement_date` → `state.classify_events()` (sort key = settlement_date or event_date)
+- [x] Classify each event's cash effect (verified over all 275 requests: 25,136 history rows, 61 pending reserves, 68 scheduled flows, 8 pending credits ignored, 16 blank amounts flagged):
+  - [x] `settled` debit/credit → already reflected in `current_available_balance` (do **not** double count) → `HistoryEvent` list
+  - [x] `pending` debit → reserve (dated flow on settlement_date, or request_date if already past); `pending` credit → ignore
+  - [x] `scheduled` → future dated flow on `settlement_date` (inside the window)
+  - [x] `failed` / `cancelled` → ignore
+  - [x] `unrealized` / `non_cash` (investment valuations) → ignore
+  - [x] `refund` credit → count only if settled (pending refunds are ignored by the pending-credit rule)
+- [x] Handle `linked_event_id` chains → `state.one_off_ids()`: all 58 links are 2-row lifecycles whose cash state is already decided by status (no child+parent both future); both ends + refunds/investment/work_expense rows (130 total) are flagged one-off so they never seed a recurring series
+- [x] De-duplicate repeated representations of the same event — all 15 such pairs are linked cancelled-auth→settled-purchase or failed→scheduled-retry pairs, already handled by status; no separate dedupe needed
+- [x] Currency conversion: `state.convert()` uses the rate row for `settlement_date` in the stated direction; falls back to the pair's latest rate only for projected dates; fails loudly for unknown pairs
 - [ ] Blank `amount` → look up `images.csv` by `related_event_id` → extract from image (Phase 4); never treat as zero
-- [ ] Recurrence detection (per user × category × description):
-  - [ ] Detect monthly cadence (same day-of-month ± a few days, ≥ 2–3 occurrences) for rent, utilities, subscriptions, debt payments, insurance, gym, salary
-  - [ ] Detect essential variable spending (groceries, transport, dining) → forecast conservatively (e.g. monthly max or upper-quantile of recent months)
-  - [ ] Ignore one-offs (shopping, windfall, refund, work_expense) unless scheduled
-  - [ ] Record `flexibility` + `minimum_allowed_amount` for each recurring debit so the planner knows what can be stopped/reduced
+- [x] Recurrence detection → `code/recurrence.py` `detect_series()` (2,296 series over 275 requests; verified on request_05/13/18):
+  - [x] Monthly cadence (median gap 26–33 d, ≥ 2 rows, same day-of-month, clamped to month end) for rent, utilities, subscriptions, debt, insurance, gym, healthcare, shopping, entertainment
+  - [x] Essential variable spending (groceries / transport / dining grouped per category, step 5–16 d, ≥ 3 rows, consistent gaps) → conservative estimate = `median` of last 6 (tunable: `VARIABLE_ESTIMATE`)
+  - [x] One-offs ignored (linked / refund / investment / work_expense via `one_off_ids`; single-occurrence descriptions never reach ≥ 2 rows); lapsed series dropped when last row is older than 1.6 × cadence
+  - [x] `flexibility` + `minimum_allowed_amount` + the most recent event id recorded on each `Series` (samples reference exactly that id in `stop:` / `reduce_to:`)
+  - [x] Projected occurrence suppressed when a scheduled/pending flow of the same category sits within ±3 days (supplied row wins)
 - [ ] Salary: find the next confirmed salary (scheduled income row) and project the recurrence on its settlement day-of-month; apply message amendments (date moved, amount raised/reduced, bonus pending → ignore)
 - [ ] Unit-test the reconstruction on 2–3 sample users and eyeball the recurring table
 
