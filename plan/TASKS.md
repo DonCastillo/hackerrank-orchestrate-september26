@@ -55,7 +55,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
   - [x] One-offs ignored (linked / refund / investment / work_expense via `one_off_ids`; single-occurrence descriptions never reach ≥ 2 rows); lapsed series dropped when last row is older than 1.6 × cadence
   - [x] `flexibility` + `minimum_allowed_amount` + the most recent event id recorded on each `Series` (samples reference exactly that id in `stop:` / `reduce_to:`)
   - [x] Projected occurrence suppressed when a scheduled/pending flow of the same category sits within ±3 days (supplied row wins)
-- [ ] Salary: find the next confirmed salary (scheduled income row) and project the recurrence on its settlement day-of-month; apply message amendments (date moved, amount raised/reduced, bonus pending → ignore)
+- [x] Salary → `state.project_salary()`: scheduled `Next confirmed salary` (amount + pay-day) else latest confirmed payroll row (≥ 2 rows); ended series (`Final` / `Previous employer payroll`) and gig/freelance/commission/bonus/seasonal/second-household income never projected; FX per occurrence. 223/275 users projected (176 latest, 47 scheduled), 52 none. Message amendments (date moved, raise/cut, resume, first salary) hook in at Phase 4
 - [ ] Unit-test the reconstruction on 2–3 sample users and eyeball the recurring table
 
 ## Phase 3 — 90-day forecast + safety check (`forecast.py`) (~1.5 h)

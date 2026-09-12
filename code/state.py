@@ -32,6 +32,20 @@ NON_CASH_TYPES = {"investment_valuation"}
 ONE_OFF_TYPES = {"refund", "investment_purchase", "investment_sale", "investment_valuation"}
 ONE_OFF_CATEGORIES = {"work_expense", "investment"}
 
+# Step 7 — which salary rows count as *confirmed* monthly payroll (plan/FINDINGS.md, salary rules).
+PAYROLL_DESCRIPTIONS = {
+    "Payroll credit", "International employer payroll", "Base salary", "Primary household salary",
+    "Previous employer payroll", "New employer payroll", "First-job payroll",
+    "Payroll before leave", "Payroll after returning from leave",
+    "Prorated first salary", "Final employer payroll", "Next confirmed salary",
+    "August 2019 net salary",
+}
+# A series whose latest row is one of these has ended unless a scheduled row / message says otherwise.
+PAYROLL_ENDING = {"Final employer payroll", "Previous employer payroll"}
+# Everything else under category=salary is variable / unconfirmed income and is never projected:
+# gig payouts, freelance invoices, commissions, bonuses, arrears, second household income,
+# seasonal / temporary pay, prize proceeds.
+
 
 @dataclass(frozen=True)
 class CashFlow:
@@ -66,6 +80,7 @@ class FinancialState:
     unresolved: list[Event] = field(default_factory=list)   # blank amounts with no amendment yet
     one_off_ids: set[str] = field(default_factory=set)      # events excluded from recurrence detection
     series: list[Series] = field(default_factory=list)       # detected recurring debit series
+    salary: Optional[dict] = None                            # projected salary summary (amount, currency, day)
     notes: list[str] = field(default_factory=list)          # human-readable audit trail
 
 
@@ -224,7 +239,62 @@ def build_state(ds: Dataset, request: Request, amendments: Optional[dict] = None
     profile = ds.profiles[request.user_id]
     st = classify_events(ds, profile, request)
     project_recurring_debits(ds, st)
-    raise NotImplementedError("Phase 2 step 7 (salary)")
+    project_salary(ds, st)
+    st.flows.sort(key=lambda f: (f.on, f.source_event_id))
+    return st
+
+
+def project_salary(ds: Dataset, st: FinancialState) -> None:
+    """Step 7 — project confirmed monthly salary through the window.
+
+    Amount and pay-day come from the scheduled `Next confirmed salary` row when present, otherwise
+    from the latest settled payroll row (a raise/cut carries forward; a one-off reduced payroll is
+    corrected by the employer message in Phase 4). Requires history support: >= 2 payroll rows, or
+    a scheduled row. Ended series (`Final employer payroll`, or a `Previous employer payroll` with no
+    successor) and non-payroll income are never projected.
+    """
+    rd, end = st.request.request_date, st.window_end
+    payroll = [h for h in st.history
+               if h.event.category == "salary" and h.event.direction == "credit"
+               and h.event.description in PAYROLL_DESCRIPTIONS and h.event.event_id not in st.one_off_ids]
+    payroll.sort(key=lambda h: h.on)
+    scheduled = [f for f in st.flows if f.kind == "scheduled" and f.category == "salary" and f.amount > 0]
+    sched_event = ds.events_by_id[scheduled[-1].source_event_id] if scheduled else None
+
+    if sched_event is not None:
+        amount, currency = sched_event.amount, sched_event.currency
+        anchor = cash_date(sched_event)
+        basis = f"scheduled {sched_event.event_id}"
+    elif len(payroll) >= 2 and payroll[-1].event.description not in PAYROLL_ENDING:
+        last = payroll[-1].event
+        amount, currency = last.amount, last.currency
+        anchor = payroll[-1].on
+        basis = f"latest payroll {last.event_id}"
+    else:
+        reason = ("no payroll history" if not payroll
+                  else f"series ended ({payroll[-1].event.description})" if payroll[-1].event.description in PAYROLL_ENDING
+                  else "single payroll row without a scheduled successor")
+        st.notes.append(f"salary: not projected — {reason}")
+        return
+
+    from recurrence import add_months
+    src = sched_event.event_id if sched_event is not None else payroll[-1].event.event_id
+    k, dates = 1, []
+    while True:
+        d = add_months(anchor, k)
+        if d > end:
+            break
+        if d >= rd:
+            dates.append(d)
+        k += 1
+    for d in dates:
+        st.flows.append(CashFlow(
+            on=d, amount=convert(ds, amount, currency, st.profile.home_currency, d),
+            source_event_id=src, category="salary", essential=True, flexibility="fixed",
+            minimum_allowed_amount=None, kind="salary",
+        ))
+    st.salary = {"amount": amount, "currency": currency, "day": anchor.day, "basis": basis, "dates": dates}
+    st.notes.append(f"salary: {amount} {currency} on day {anchor.day} from {basis} -> {len(dates)} projected")
 
 
 def project_recurring_debits(ds: Dataset, st: FinancialState) -> None:
