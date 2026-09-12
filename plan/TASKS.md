@@ -26,8 +26,8 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 1 — Understand the data (~45 min)
 
-- [ ] Walk through all 25 rows of `sample_requests.csv` by hand for 3–4 users; reverse-engineer how `amount_safe_to_pay`, `earliest_date_for_full_payment`, and the chosen plan were derived
-- [ ] Confirm the exact meaning of "at least X available" in sample explanations (X == `minimum_balance_to_keep`)
+- [x] Walk through all 25 rows of `sample_requests.csv` by hand for 3–4 users; reverse-engineer how `amount_safe_to_pay`, `earliest_date_for_full_payment`, and the chosen plan were derived → see `plan/FINDINGS.md` (core formula, 90-day window, salary rules, trough logic; exact variable-spend estimates are not reproducible — timeboxed)
+- [x] Confirm the exact meaning of "at least X available" in sample explanations (X == `minimum_balance_to_keep`) — confirmed on all 25
 - [ ] Inventory `financial_events.csv` (25k rows): event_type × status × direction × flexibility; note the 16 blank-amount rows (image-backed), 58 `linked_event_id` rows, 10 `unrealized` valuations, 22 cancelled, 21 failed, 71 pending, 70 scheduled
 - [ ] Inventory `messages.csv` (215 rows): multilingual (EN / ID / others); sources = employer, service_provider, financial_service, bank, merchant; 128 tied to a request, 39 tied to an event
 - [ ] Inventory `images.csv` (16) and open a few PNGs to see what they contain (payslips, bills, statements)
@@ -115,7 +115,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Open questions to resolve while working (write answers here)
 
-- [ ] How do samples compute `amount_safe_to_pay` when the request itself is not affordable — headroom on `request_date` only, or min headroom across 90 days?
-- [ ] Is `earliest_date_for_full_payment` for `wait` the first safe date, or does it snap to a salary date / deadline?
+- [x] How do samples compute `amount_safe_to_pay` when the request itself is not affordable — **min headroom across the 90-day window** (trough balance − min_keep), verified on all samples
+- [x] Is `earliest_date_for_full_payment` for `wait` the first safe date, or does it snap to a salary date / deadline? — **snaps to a salary date or the deadline** in every sample; never mid-month
 - [ ] Do installment months = `number_of_payments` or `(number_of_payments × frequency_days) / 30`?
 - [ ] For `affordable_with_plan` via spending changes, does the change apply for the whole 90 days?
