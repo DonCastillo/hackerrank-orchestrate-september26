@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from money import fmt_plan
 from state import FinancialState
 
 
@@ -25,7 +26,7 @@ class SpendingChange:
     def render(self) -> str:
         if self.action == "stop":
             return f"stop:{self.event_id}"
-        return f"reduce_to:{self.event_id}:{self.new_amount}"
+        return f"reduce_to:{self.event_id}:{fmt_plan(self.new_amount)}"
 
 
 def daily_balances(

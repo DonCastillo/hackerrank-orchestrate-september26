@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Optional
 
 from loader import Dataset, Event, Profile, Request
+from money import q
 
 
 @dataclass(frozen=True)
@@ -57,4 +58,4 @@ def convert(ds: Dataset, amount: Decimal, currency: str, to_currency: str, on: d
     key = (on, currency, to_currency)
     if key not in ds.rates:
         raise KeyError(f"no exchange rate for {currency}->{to_currency} on {on}")
-    return amount * ds.rates[key]
+    return q(amount * ds.rates[key])

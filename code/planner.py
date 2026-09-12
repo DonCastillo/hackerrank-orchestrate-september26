@@ -8,6 +8,7 @@ from typing import Optional
 
 from forecast import Payment, SpendingChange
 from loader import Dataset, PaymentOption
+from money import fmt_plan, fmt_safe
 from state import FinancialState
 
 
@@ -27,7 +28,7 @@ class Decision:
     def payment_plan(self) -> str:
         if not self.payments:
             return "none"
-        return "|".join(f"{p.on.isoformat()}:{fmt_amount(p.amount)}" for p in self.payments)
+        return "|".join(f"{p.on.isoformat()}:{fmt_plan(p.amount)}" for p in self.payments)
 
     def spending_changes_needed(self) -> str:
         return "|".join(c.render() for c in self.spending_changes) if self.spending_changes else "none"
@@ -35,7 +36,7 @@ class Decision:
     def to_row(self) -> dict[str, str]:
         return {
             "request_id": self.request_id,
-            "amount_safe_to_pay": fmt_amount(self.amount_safe_to_pay),
+            "amount_safe_to_pay": fmt_safe(self.amount_safe_to_pay),
             "affordability_status": self.affordability_status,
             "recommended_payment_method": self.recommended_payment_method,
             "payment_plan": self.payment_plan(),
@@ -46,12 +47,6 @@ class Decision:
             "spending_changes_needed": self.spending_changes_needed(),
             "decision_explanation": self.decision_explanation,
         }
-
-
-def fmt_amount(x: Decimal) -> str:
-    """Match sample style: no trailing zeros, no exponent (e.g. 620.4, 15952906.67, 25256)."""
-    s = format(x.normalize(), "f")
-    return s
 
 
 def decide(ds: Dataset, state: FinancialState) -> Decision:

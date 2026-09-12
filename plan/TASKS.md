@@ -22,7 +22,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
   - [x] `code/validate.py` — full contract checks; verified 0 problems on the 25 ground-truth samples
   - [x] `code/score_samples.py` — column-by-column diff vs `sample_requests.csv`
   - [x] `code/usage_report.py` — builds `code/evaluation/usage_report.md` from `cache/usage.jsonl`
-- [ ] Decide rounding convention (samples use up to 2 dp; IDR values are whole) and centralize it
+- [x] Decide rounding convention and centralize it → `code/money.py`: Decimal everywhere, `q()` = 2 dp ROUND_HALF_UP after any multiplication; `fmt_safe()` minimal digits for `amount_safe_to_pay` (17229139.2 / 462); `fmt_plan()` 2 dp-if-fractional for plan + reduce_to amounts (620.40 / 23.50 / 25256). Verified 0 mismatches across all 25 samples
 
 ## Phase 1 — Understand the data (~45 min)
 
