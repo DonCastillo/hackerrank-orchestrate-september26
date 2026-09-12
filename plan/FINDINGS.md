@@ -98,3 +98,121 @@ plus 62 settled card items settling 1–3 days later) → use `settlement_date` 
 Categories seen in settled debits: groceries, transport, dining (weekly-ish variable); utilities, healthcare, shopping,
 entertainment (monthly variable); rent/housing, debt_repayment, insurance, education, gym, family_support, cloud_storage,
 streaming, music_subscription, delivery_membership (monthly constant); investment, work_expense (one-off).
+
+## Message inventory (Phase 1 · step 4) — 215 rows, ~30 templates, EN 170 / ID 45
+
+128 tied to a request, 39 to an event (28 both), 76 to neither (user-level). 198 belong to evaluation-request
+users; 116 of the 250 requests have at least one message. Every message is one of these archetypes:
+
+| Source | Archetype | Engine action |
+|---|---|---|
+| employer | salary date moved to `<date>` | `amend_date` on next salary |
+| employer | next salary reduced to `X` (unpaid leave) | `amend_amount` on next salary only |
+| employer | temporary monthly pay `X` for the next N payrolls | `amend_amount` for N occurrences, then revert |
+| employer | monthly salary increased to `X` from `<date>` | recurring salary = X from date |
+| employer | first salary `X` on `<date>` (new job / new employer / scheduled & approved) | `new_recurring` salary from date |
+| employer | salary `X` resumes on `<date>` + new recurring childcare payment begins | salary from date + `new_recurring` debit |
+| employer | salary `X` (foreign currency) confirmed for `<date>`, bank converts at that day's rate | salary in FX → convert |
+| employer | regular salary `X` + one-time arrears adjustment `Y` on the same payroll | salary = X; one-off credit Y on that date |
+| employer | confirmed base salary `X`; commission pending approval | salary = base only; ignore commission |
+| employer | household employment ended; remaining confirmed monthly salary `X` | salary = X (drop the other source) |
+| employer | seasonal contract ended / employment ended, nothing scheduled | `cancel` future salary |
+| employer | quarterly bonus still subject to review | ignore |
+| employer | latest credit is a work-expense reimbursement | not income (one-off, already settled) |
+| service_provider | client approved invoice `X` expected `<date>`; others pending | one-off credit X on date; ignore rest |
+| service_provider | gig payout still pending / can change | ignore (no income) |
+| service_provider | renewed lease raises rent by N% from next payment | `amend_amount` on recurring rent |
+| service_provider | maintenance payment received; receipt has final amount | image-backed event |
+| bank | extra card charge under investigation, reversal not posted | keep the pending duplicate reserved |
+| bank | previous debit failed, bill still outstanding | scheduled retry stands |
+| bank | matching debit & credit = transfer between own accounts | net zero, not spending / not income |
+| bank | minimum payments due on two card accounts | both scheduled debits stand |
+| merchant | refund initiated / foreign-currency refund processing | ignore until settled |
+| merchant | bill charged in foreign currency, bank confirms final amount | FX conversion on settlement |
+| merchant | order paid `X` on `<date>`, receipt has final amount | image-backed event |
+| financial_service | prize claim verified, still processing | ignore |
+| financial_service | prize proceeds reached account after withholding | already settled → nothing to add |
+| financial_service | "selected for a cash prize — pay the release charge today" | scam / instruction → ignore |
+| financial_service | portfolio value up / down | ignore (unrealized) |
+| financial_service | investment sale proceeds settled in cash account | settled credit already in balance |
+| financial_service | wallet charged for EV session, receipt has amount | image-backed event |
+
+Implication for Phase 4: the LLM prompt can ask for a classification into these actions with a strict JSON schema
+(`action`, `event_id`/`scope`, `amount`, `currency`, `date`, `count`, `percent`) — no free-form interpretation needed.
+Indonesian messages use the same templates verbatim (`gaji … naik menjadi`, `masih menunggu`, `sudah dikonfirmasi`).
+
+## Image inventory (Phase 1 · step 5) — 16 PNGs, one per blank-amount event
+
+All 16 files exist (110–760 KB, ~1.2–1.6k px). 5 belong to sample requests, 11 to evaluation requests; 15 of 16
+users are INR. Three have a companion message saying "the receipt has the final amount" (message_35/64/86).
+
+| Kind | Linked event status | What the number means for the engine |
+|---|---|---|
+| salary payslip (image_01) | settled credit | **Net pay** 4,365,000 — not gross 4,780,800; equals the user's other salary rows |
+| rent receipt (image_02) | scheduled debit "Outstanding rent balance" | **Balance Due 1,00,000** (lakh formatting), not the 2,00,000 total or 1,00,000 received |
+| grocery / restaurant / pharmacy / water / maintenance invoices | settled (already in balance) or pending/scheduled | total payable; settled ones only feed recurrence history, pending/scheduled ones are future outflows |
+| taxi receipt (image_12) | settled debit in **USD** | Total **$33.50** (not the $40 cash paid); USD→INR rate for 2025-10-01 exists (83.33) |
+| tote bag order (image_13) | settled debit | Total paid ₹2,298 |
+| EV charging (image_16) | settled debit | receipt amount; the same message also confirms a USD 1,296 salary on 2026-09-15 (FX at settlement) |
+
+Extraction rules for Phase 4: ask the vision model for `{amount, currency, date, kind, which_line}` and prefer, in order,
+**Net pay / Balance due / Total paid / Total** over gross, subtotal, cash tendered, or per-line items. Parse Indian
+digit grouping (`1,00,000.00`). Cross-check against the event's `currency` and `event_date`; if the image and event
+disagree on currency, trust the image amount+currency and convert on the event's settlement date.
+
+Impact: 11 of the 16 blank events are *settled* debits — their amount only affects recurrence estimates for that category.
+The ones that move the projection directly are the 2 pending + 2 scheduled debits (rent balance, telecom bill, hospital bill,
+large grocery invoice) and the salary credit (history for the recurring salary amount).
+
+## Payment-option inventory (Phase 1 · step 6) — 790 options over 275 requests (2–4 each)
+
+**Full payment (275, exactly one per request):** amount = `requested_amount`, `first_payment_date` = `request_date`, fee 0.
+So "full payment today" is always *offered*; only the profile's `payment_methods_user_will_consider` can rule it out.
+
+**Installments (515):**
+- `number_of_payments` ∈ {2:7, 3:80, 4:3, 6:65, 15:89, 18:87, 21:88, 24:96}; `payment_frequency_days` ∈ {28, 30, 31}
+- `first_payment_date` = request_date + {0, 3, 7, 14} days (a handful at +1/+5/+6)
+- fee = 4–22 % of the request; invariants hold for all 515: `payment_amount × n == total_payable_amount == requested + fee`
+- **434 of 515 finish after `desired_completion_date`** (deadlines are ≤ 86 days; anything with n ≥ 6 can't fit).
+  Only the 2/3/4-payment options can complete in time → this is why every sample installment choice is the 3-payment one.
+- Eligibility vs profiles: 228 options belong to users who don't consider installments at all; of the rest,
+  94 have n ≤ `max_installment_months`, 193 have n > max.
+- Months interpretation: `n` vs `n × freq / 30` differ by ≥ 1 month for 120 options, but never for the samples.
+  Decision: **months = number_of_payments** (natural reading; freq ≈ one month). Recorded as an assumption.
+
+**Ranking evidence (request_19):** an eligible 2-installment plan (n=2 ≤ max 2, finishes 2 days before the deadline)
+was passed over for `partial_payment` because partial is fee-free (39,660 vs 41,246.40). Confirms the order:
+completes by deadline → no spending changes → **lowest total cost** → earlier start → fewer payments.
+
+**Deadline as a hard constraint:** in every sample, eligible ⇔ completes by deadline, so the labels can't distinguish
+"hard" from "strongly preferred". Treat completion by `desired_completion_date` as **required** for every plan
+(matches the partial-payment rule in §6.2 and the "Do not make this payment by <deadline>" explanations).
+
+**Evaluation-request profile mix:** methods — full only 54, full+partial 38, full+inst 33, full+partial+inst 23,
+partial+inst 48, inst only 38, partial only 16. `allows_partial_payment` true for 80 / 250.
+Request types are balanced (~28 each of purchase, travel, housing, education, debt_repayment, family_transfer,
+investment, emergency_expense, other).
+
+## Profile inventory (Phase 1 · step 7) — 275 users
+
+- Currencies: INR 67, EUR 62, IDR 55, ZAR 51, USD 40. Nobody starts below their minimum; `min_keep / balance` is 0.17–0.77 (median 0.48).
+- `payment_methods_user_will_consider` (7 combos): full only 60, partial+inst 52, full+partial 40, inst only 41,
+  full+inst 35, full+partial+inst 28, partial only 19.
+- `max_installment_months`: blank for 119 — **exactly** the users who don't list installments; 2–12 for the other 156.
+  So "blank ⇒ rejects installments" and "listed ⇒ has a max" are both safe to rely on.
+- Priorities (informational for explanations): emergency_savings 171, education 94, retirement_investment 61, …
+- Protected categories: rent 232, groceries 166, transport 109, utilities 105, education 60, debt_repayment 56, insurance 46, healthcare 44, housing 43, family_support 25.
+- Willing to **reduce**: dining 153, shopping 72, streaming 66, entertainment 44, gym 14.
+- Willing to **stop**: cloud_storage 109, streaming 84, music_subscription 58, delivery_membership 41, gym 12.
+  45 profiles list the same category (streaming / gym) under both — those events carry `reducible_or_stoppable`.
+- Protected never overlaps reduce/stop (0 profiles).
+
+**Event flexibility ⇔ profile permission is consistent** (settled debits):
+`reducible` rows are always in a reduce category (2,682), `stoppable` always in a stop category (1,297),
+`reducible_or_stoppable` always in both (225), and `fixed` rows are protected or unlisted (only 10 fixed rows sit in a
+reduce category — they stay untouchable). `investment` and `work_expense` never appear in any profile list.
+
+**Spending-change rule for Phase 5:** an event is changeable iff its `flexibility` ≠ fixed **and** its category is in the
+matching profile list — `reducible` → `reduce_to:<id>:<amount ≥ minimum_allowed_amount>`, `stoppable` → `stop:<id>`,
+`reducible_or_stoppable` → either (prefer reduce-to-minimum if it suffices, else stop, matching request_21's pair).
+Changes apply to the projected recurring occurrences of that event's series inside the window.

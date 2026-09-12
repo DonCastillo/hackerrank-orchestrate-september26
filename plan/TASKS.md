@@ -29,10 +29,10 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 - [x] Walk through all 25 rows of `sample_requests.csv` by hand for 3–4 users; reverse-engineer how `amount_safe_to_pay`, `earliest_date_for_full_payment`, and the chosen plan were derived → see `plan/FINDINGS.md` (core formula, 90-day window, salary rules, trough logic; exact variable-spend estimates are not reproducible — timeboxed)
 - [x] Confirm the exact meaning of "at least X available" in sample explanations (X == `minimum_balance_to_keep`) — confirmed on all 25
 - [x] Inventory `financial_events.csv` (25k rows): event_type × status × direction × flexibility; note the 16 blank-amount rows (image-backed), 58 `linked_event_id` rows, 10 `unrealized` valuations, 22 cancelled, 21 failed, 71 pending, 70 scheduled → table + treatment per status in `plan/FINDINGS.md`
-- [ ] Inventory `messages.csv` (215 rows): multilingual (EN / ID / others); sources = employer, service_provider, financial_service, bank, merchant; 128 tied to a request, 39 tied to an event
-- [ ] Inventory `images.csv` (16) and open a few PNGs to see what they contain (payslips, bills, statements)
-- [ ] Inventory `request_payment_options.csv`: 2–4 options per request; `full_payment` vs `installments`; note `first_payment_date`, `payment_frequency_days`, `number_of_payments`, `total_payable_amount`
-- [ ] Inventory profiles: `payment_methods_user_will_consider` combos; `max_installment_months` blank for 119/275 users
+- [x] Inventory `messages.csv` (215 rows): EN 170 / ID 45; ~30 templates across employer (126) / service_provider (31) / financial_service (23) / bank (18) / merchant (17); 128 tied to a request, 39 to an event → archetype→action table in `plan/FINDINGS.md`
+- [x] Inventory `images.csv` (16) and open a few PNGs to see what they contain → payslip (net vs gross trap), rent receipt (balance-due vs total, lakh digits), USD taxi receipt (total vs cash paid, needs FX), order confirmations; extraction rules in `plan/FINDINGS.md`
+- [x] Inventory `request_payment_options.csv`: one full option per request (= requested, on request_date, fee 0) + 1–3 installment options (n ∈ {2,3,4,6,15,18,21,24}, freq 28/30/31, start +0/3/7/14d, fee 4–22 %); 434/515 finish after the deadline; invariants amount×n == total == requested+fee hold for all → `plan/FINDINGS.md`
+- [x] Inventory profiles: 7 method combos; `max_installment_months` blank ⇔ user rejects installments (119/275); protect/reduce/stop lists align exactly with event `flexibility` → spending-change rule in `plan/FINDINGS.md`
 - [ ] Check `exchange_rates.csv` coverage: which (date, from, to) pairs exist; confirm every foreign-currency cash event has a rate on its settlement date
 
 ## Phase 2 — Financial-state reconstruction (`state.py`) (~2 h)
@@ -117,5 +117,5 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 - [x] How do samples compute `amount_safe_to_pay` when the request itself is not affordable — **min headroom across the 90-day window** (trough balance − min_keep), verified on all samples
 - [x] Is `earliest_date_for_full_payment` for `wait` the first safe date, or does it snap to a salary date / deadline? — **snaps to a salary date or the deadline** in every sample; never mid-month
-- [ ] Do installment months = `number_of_payments` or `(number_of_payments × frequency_days) / 30`?
+- [x] Do installment months = `number_of_payments` or `(number_of_payments × frequency_days) / 30`? — samples can't distinguish; **chose `number_of_payments`** (documented assumption)
 - [ ] For `affordable_with_plan` via spending changes, does the change apply for the whole 90 days?
