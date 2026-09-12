@@ -56,12 +56,12 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
   - [x] `flexibility` + `minimum_allowed_amount` + the most recent event id recorded on each `Series` (samples reference exactly that id in `stop:` / `reduce_to:`)
   - [x] Projected occurrence suppressed when a scheduled/pending flow of the same category sits within ±3 days (supplied row wins)
 - [x] Salary → `state.project_salary()`: scheduled `Next confirmed salary` (amount + pay-day) else latest confirmed payroll row (≥ 2 rows); ended series (`Final` / `Previous employer payroll`) and gig/freelance/commission/bonus/seasonal/second-household income never projected; FX per occurrence. 223/275 users projected (176 latest, 47 scheduled), 52 none. Message amendments (date moved, raise/cut, resume, first salary) hook in at Phase 4
-- [ ] Unit-test the reconstruction on 2–3 sample users and eyeball the recurring table
+- [x] Unit-test the reconstruction on 2–3 sample users and eyeball the recurring table → traced request_18 (trough 1,863 vs ref 1,862), request_04 (5 % high — variable estimate to tune in Phase 7), request_08 (needs the Phase 4 salary message); 11 structural tests in `code/tests/test_state.py` all pass
 
 ## Phase 3 — 90-day forecast + safety check (`forecast.py`) (~1.5 h)
 
-- [ ] Build a daily ledger from `request_date` to `request_date + 90 days`: start balance = `current_available_balance` − reserved pending debits
-- [ ] Add projected recurring debits/credits, scheduled events, and evidence-driven adjustments
+- [x] Build a daily ledger from `request_date` to `request_date + 90 days` → `forecast.daily_ledger()`: opening balance + every flow (pending reserves are dated flows), debits before credits on each day, `DayPoint(low, close)` per active day
+- [x] Add projected recurring debits/credits, scheduled events, and evidence-driven adjustments → all come in via `state.flows`; `SpendingChange`s (stop / reduce_to) are applied to the recurring occurrences of the named event's series in `_effective_flows()`; verified on request_18 (stop streaming +68, reduce to 34 +34)
 - [ ] `is_safe(plan_payments, spending_changes)` → true iff min balance over the whole window ≥ `minimum_balance_to_keep` after every projected essential expense and plan payment
 - [ ] `amount_safe_to_pay` = max amount payable on `request_date` (no spending changes) that keeps the window safe, capped at `requested_amount`, floored at 0 (binary search or direct: min-over-window headroom)
 - [ ] `earliest_date_for_full_payment` = first date in the window where a single full payment is safe without spending changes (empty if none)
