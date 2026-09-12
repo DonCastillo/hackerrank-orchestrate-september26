@@ -10,16 +10,18 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 - [x] Confirm Python 3 + `pip`; create `code/requirements.txt` (stdlib-only for the engine; `anthropic` + `python-dotenv` for the LLM layer) — Python 3.14 locally; `pyproject.toml` requires >=3.10; exact pins in `code/requirements.lock.txt`; `python bootstrap.py` creates `.venv/` + installs + runs on any OS
 - [x] Create `.env.example` with `ANTHROPIC_API_KEY=` (never commit `.env`; confirm `.gitignore` covers `.env` and `log.txt`)
-- [ ] Scaffold `code/` modules:
-  - [ ] `code/main.py` — CLI entry: `python3 code/main.py [--limit N] [--request-ids ...] [--no-llm]` → writes root `output.csv`
-  - [ ] `code/loader.py` — read all `dataset/*.csv` into typed dataclasses
-  - [ ] `code/state.py` — per-user financial-state reconstruction
-  - [ ] `code/forecast.py` — 90-day daily balance projection + safety check
-  - [ ] `code/planner.py` — candidate plans, ranking, output-field derivation
-  - [ ] `code/evidence.py` — messages/images → structured amendments (LLM-backed, cached)
-  - [ ] `code/explain.py` — `decision_explanation` generation (template-first, LLM optional)
-  - [ ] `code/validate.py` — output contract checks
-  - [ ] `code/score_samples.py` — self-score against `dataset/sample_requests.csv`
+- [x] Scaffold `code/` modules (all import cleanly; `validate.py`, `score_samples.py`, `usage_report.py` fully implemented; the rest raise `NotImplementedError("Phase N")`):
+  - [x] `code/main.py` — CLI entry: `--no-llm`, `--limit N`, `--request-ids ...`, `--output`, `--validate`, `--score-samples`, `-v` → writes root `output.csv`
+  - [x] `code/config.py` — paths, output columns, enums, 90-day horizon
+  - [x] `code/loader.py` — all `dataset/*.csv` → frozen dataclasses, Decimal money (verified: 275 profiles, 25,342 events, 250 requests, 25 samples, 790 options, 215 messages, 16 images)
+  - [x] `code/state.py` — `build_state()` + `convert()` (Phase 2)
+  - [x] `code/forecast.py` — `daily_balances / is_safe / amount_safe_on / earliest_full_payment_date` (Phase 3)
+  - [x] `code/planner.py` — `Decision` dataclass with `to_row()`; `decide()` (Phase 5)
+  - [x] `code/evidence.py` — `Amendment`/`AmendmentSet`, content-hash cache + `usage.jsonl`; `gather_amendments()` (Phase 4)
+  - [x] `code/explain.py` — `explain()` (Phase 6)
+  - [x] `code/validate.py` — full contract checks; verified 0 problems on the 25 ground-truth samples
+  - [x] `code/score_samples.py` — column-by-column diff vs `sample_requests.csv`
+  - [x] `code/usage_report.py` — builds `code/evaluation/usage_report.md` from `cache/usage.jsonl`
 - [ ] Decide rounding convention (samples use up to 2 dp; IDR values are whole) and centralize it
 
 ## Phase 1 — Understand the data (~45 min)
