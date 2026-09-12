@@ -66,3 +66,35 @@ forecaster over all 25 samples (`amount_safe_to_pay` only). Updated as we learn 
 - Installment months: `number_of_payments` vs `(n × frequency_days)/30`? Samples: 3 payments @ 30d with max 7/12/11/3/6 — both readings fit.
 - Does the ranking prefer installments over `wait` when both complete by the deadline? (request_02/07/12/17/22 chose installments; each user's methods excluded full_payment except 12/17… check.)
 - Do spending changes apply to every future occurrence in the window (assumed yes)?
+
+## Event inventory (Phase 1 · step 3) — 25,342 rows
+
+| Status | Rows | Treatment |
+|---|---|---|
+| settled | 25,148 | already in `current_available_balance`; history for recurrence |
+| pending | 71 | 63 debits → reserve on `settlement_date`; 8 `Pending merchant refund` credits → ignore |
+| scheduled | 70 | 47 `Next confirmed salary` credits + 23 debits (bill retry, insurance, school fee, utility, rent balance, hospital) → dated future flows |
+| failed | 21 | ignore; 7 have a linked `Scheduled bill payment retry` that carries the real future debit |
+| cancelled | 22 | ignore; 8 `Card authorization` have a linked settled `Settled card purchase` (already in balance) |
+| unrealized | 10 | `Current portfolio valuation` non_cash → ignore |
+
+Linked pairs (58): refund↔purchase, duplicate charge↔original, retry↔failed, reimbursement↔work expense,
+sale↔investment contribution, reversal↔charge, settled purchase↔cancelled auth, valuation↔contribution.
+The **6 `Possible duplicate card charge` pending debits** are the judgement call: linked to a settled original
+→ likely a duplicate, but the safer reading is to reserve them unless a message/bank note clears them.
+
+Flexibility: fixed 21,138 · reducible 2,682 · stoppable 1,297 · reducible_or_stoppable 225.
+`minimum_allowed_amount` is present on exactly the reducible rows → the `reduce_to` floor.
+
+Blank amounts: 16 rows, all image-backed (`images.csv` covers every one). Mix of settled / pending / scheduled,
+one salary credit (event_253) and one USD taxi fare for an INR user (event_7307 → needs FX after extraction).
+
+Foreign currency: only salary rows (+ that one taxi fare): EUR/USD payroll into USD/ZAR/EUR/IDR/INR home
+accounts, incl. 8 scheduled next salaries → convert at the settlement-date rate.
+
+Dates: 10 blank `settlement_date` (use `event_date`); 178 rows where settlement ≠ event date (all pending/scheduled/cancelled
+plus 62 settled card items settling 1–3 days later) → use `settlement_date` for cash timing.
+
+Categories seen in settled debits: groceries, transport, dining (weekly-ish variable); utilities, healthcare, shopping,
+entertainment (monthly variable); rent/housing, debt_repayment, insurance, education, gym, family_support, cloud_storage,
+streaming, music_subscription, delivery_membership (monthly constant); investment, work_expense (one-off).

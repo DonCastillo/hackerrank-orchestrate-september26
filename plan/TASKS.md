@@ -28,7 +28,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 - [x] Walk through all 25 rows of `sample_requests.csv` by hand for 3–4 users; reverse-engineer how `amount_safe_to_pay`, `earliest_date_for_full_payment`, and the chosen plan were derived → see `plan/FINDINGS.md` (core formula, 90-day window, salary rules, trough logic; exact variable-spend estimates are not reproducible — timeboxed)
 - [x] Confirm the exact meaning of "at least X available" in sample explanations (X == `minimum_balance_to_keep`) — confirmed on all 25
-- [ ] Inventory `financial_events.csv` (25k rows): event_type × status × direction × flexibility; note the 16 blank-amount rows (image-backed), 58 `linked_event_id` rows, 10 `unrealized` valuations, 22 cancelled, 21 failed, 71 pending, 70 scheduled
+- [x] Inventory `financial_events.csv` (25k rows): event_type × status × direction × flexibility; note the 16 blank-amount rows (image-backed), 58 `linked_event_id` rows, 10 `unrealized` valuations, 22 cancelled, 21 failed, 71 pending, 70 scheduled → table + treatment per status in `plan/FINDINGS.md`
 - [ ] Inventory `messages.csv` (215 rows): multilingual (EN / ID / others); sources = employer, service_provider, financial_service, bank, merchant; 128 tied to a request, 39 tied to an event
 - [ ] Inventory `images.csv` (16) and open a few PNGs to see what they contain (payslips, bills, statements)
 - [ ] Inventory `request_payment_options.csv`: 2–4 options per request; `full_payment` vs `installments`; note `first_payment_date`, `payment_frequency_days`, `number_of_payments`, `total_payable_amount`
