@@ -33,7 +33,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 - [x] Inventory `images.csv` (16) and open a few PNGs to see what they contain → payslip (net vs gross trap), rent receipt (balance-due vs total, lakh digits), USD taxi receipt (total vs cash paid, needs FX), order confirmations; extraction rules in `plan/FINDINGS.md`
 - [x] Inventory `request_payment_options.csv`: one full option per request (= requested, on request_date, fee 0) + 1–3 installment options (n ∈ {2,3,4,6,15,18,21,24}, freq 28/30/31, start +0/3/7/14d, fee 4–22 %); 434/515 finish after the deadline; invariants amount×n == total == requested+fee hold for all → `plan/FINDINGS.md`
 - [x] Inventory profiles: 7 method combos; `max_installment_months` blank ⇔ user rejects installments (119/275); protect/reduce/stop lists align exactly with event `flexibility` → spending-change rule in `plan/FINDINGS.md`
-- [ ] Check `exchange_rates.csv` coverage: which (date, from, to) pairs exist; confirm every foreign-currency cash event has a rate on its settlement date
+- [x] Check `exchange_rates.csv` coverage: 5 pairs, one constant rate each, dated on the 15th; all 140 foreign-currency events covered on their settlement date; 33 extra rows serve projected salaries → fallback to the pair's latest rate for dates without a row
 
 ## Phase 2 — Financial-state reconstruction (`state.py`) (~2 h)
 

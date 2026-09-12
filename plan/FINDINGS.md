@@ -216,3 +216,16 @@ reduce category — they stay untouchable). `investment` and `work_expense` neve
 matching profile list — `reducible` → `reduce_to:<id>:<amount ≥ minimum_allowed_amount>`, `stoppable` → `stop:<id>`,
 `reducible_or_stoppable` → either (prefer reduce-to-minimum if it suffices, else stop, matching request_21's pair).
 Changes apply to the projected recurring occurrences of that event's series inside the window.
+
+## Exchange-rate coverage (Phase 1 · step 8) — 134 rows, 5 pairs
+
+- Pairs: USD→INR 33, USD→IDR 30, USD→EUR 25, EUR→USD 24, EUR→ZAR 22. Every pair has **one constant rate**
+  (USD→INR 83.33, USD→IDR 15,833.33, USD→EUR 0.92, EUR→USD 1.09, EUR→ZAR 20), dated on the 15th (133 rows) plus one on
+  2025-10-01 for the USD taxi receipt.
+- **All 140 foreign-currency events** (131 settled salaries, 8 scheduled next salaries, 1 taxi expense) have a rate row on
+  their `settlement_date` in the stated direction. Nothing is missing; no reverse-direction lookup is ever needed.
+- 33 rate rows match no event — they sit on future 15ths for users whose salary keeps arriving in USD/EUR, i.e. they cover
+  the **projected** salaries inside the 90-day window. Since rates are constant per pair, project with the dated row when it
+  exists and otherwise the pair's latest known rate (document as the fallback; `convert()` currently fails loudly — soften to this).
+- 16 messages mention FX: salary confirmations in USD/EUR "converted at the rate applied when it settles" (→ use that
+  date's row), foreign-currency refunds still processing (ignore), and a bill charged in a foreign currency (settled, in balance).
