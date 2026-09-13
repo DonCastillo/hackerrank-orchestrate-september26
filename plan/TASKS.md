@@ -108,7 +108,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 - [ ] Run `validate.py` on the final `output.csv`
 - [ ] Generate `code/evaluation/usage_report.md` from `usage.jsonl`: providers, model names, call counts, input/output tokens, total & avg tokens per request, estimated total & per-request cost (per-model + overall)
 - [ ] Write `code/README.md`: setup (`pip install -r requirements.txt`, `.env`), run command, module overview, determinism/caching notes
-- [ ] Build `code.zip` (code/, README, evaluation/, cache/ so the run is reproducible; exclude `.env`); prune stale cache files from the pre-`debit_once` prompt first (only keep files hit by a cached-only run)
+- [ ] Build `code.zip` (code/, README, evaluation/, cache/ so the run is reproducible; exclude `.env`); stale pre-`debit_once` cache files already pruned (231 current files; cached-only run verified with no API key)
 - [ ] Final check of `log.txt` (no secrets) — this is the `chat_transcript`
 - [ ] Submit `code.zip`, `output.csv`, `log.txt` at https://www.hackerrank.com/contests/hackerrank-orchestrate-september26/challenges/buy-or-wait/submission
 
