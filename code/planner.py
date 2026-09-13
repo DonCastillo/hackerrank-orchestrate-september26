@@ -193,6 +193,54 @@ def enumerate_candidates(ds: Dataset, state: FinancialState) -> tuple[list[Candi
     return cands, safe_today, earliest
 
 
+# --------------------------------------------------------------------------- #
+# Step 2–3: ranking, status derivation, fallback
+# --------------------------------------------------------------------------- #
+
+def rank_key(c: Candidate) -> tuple:
+    """§6.3 preference order among safe, on-time plans:
+    avoids spending changes → lowest total payment cost → starts earlier → fewer payments →
+    lowest payment_option_id (deterministic tie-break)."""
+    return (
+        1 if c.changes else 0,
+        c.total_cost,
+        c.start,
+        len(c.payments),
+        c.option.payment_option_id if c.option else "",
+    )
+
+
+def status_for(c: Candidate, request_date: date) -> str:
+    if c.method == "full_payment" and not c.changes and c.start == request_date:
+        return "affordable_now"
+    if c.method == "wait":
+        return "affordable_later"
+    return "affordable_with_plan"   # partial schedule, installments, or permitted spending changes
+
+
 def decide(ds: Dataset, state: FinancialState) -> Decision:
-    """Produce the full decision for one request (ranking + status: step 2–3)."""
-    raise NotImplementedError("Phase 5 steps 2–3")
+    """Produce the full decision for one request."""
+    req = state.request
+    cands, safe_today, earliest = enumerate_candidates(ds, state)
+    survivors = sorted((c for c in cands if c.safe), key=rank_key)
+
+    if not survivors:
+        return Decision(
+            request_id=req.request_id, amount_safe_to_pay=safe_today,
+            affordability_status="not_affordable", recommended_payment_method="not_recommended",
+            payments=[], earliest_date_for_full_payment=earliest, spending_changes=[], candidates=cands,
+        )
+
+    best = survivors[0]
+    status = status_for(best, req.request_date)
+    return Decision(
+        request_id=req.request_id,
+        amount_safe_to_pay=safe_today,
+        affordability_status=status,
+        recommended_payment_method=best.method,
+        payments=list(best.payments),
+        earliest_date_for_full_payment=req.request_date if status == "affordable_now" else earliest,
+        spending_changes=list(best.changes),
+        option=best.option,
+        candidates=cands,
+    )

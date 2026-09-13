@@ -86,10 +86,10 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
   - [x] `partial_payment`: exactly two payments — `amount_safe_to_pay` on `request_date`, remainder on `earliest_date_for_full_payment` (§6.2); only if `allows_partial_payment`, user considers it, `0 < safe < requested`, second date ≤ deadline (always safe when both hold — verified over all 275 requests)
   - [x] `installments`: each supplied option expanded to `first_payment_date + k×frequency_days`; rejected if user doesn't consider installments, `number_of_payments > max_installment_months`, unsafe, or completes after the deadline
   - [x] `wait`: full payment on `earliest_date_for_full_payment` if ≤ deadline (samples confirm wait dates = payday or deadline)
-- [ ] Rank safe plans by: completes by deadline → no spending changes → lowest total paid → earliest start → fewer payments → lowest `payment_option_id`
-- [ ] Derive `affordability_status` from the chosen plan (`affordable_now` / `affordable_with_plan` / `affordable_later` / `not_affordable`)
-- [ ] Fallback `not_recommended` + `payment_plan=none` when nothing safe & eligible
-- [ ] Amount formatting: match sample style (e.g. `620.40`, `15952906.67`, whole IDR)
+- [x] Rank safe plans → `planner.rank_key()`: (needs changes, total cost, start date, number of payments, payment_option_id); deadline is a hard gate in enumeration
+- [x] Derive `affordability_status` → `planner.status_for()`: full today without changes = `affordable_now` (earliest := request_date); wait = `affordable_later`; partial / installments / full+changes = `affordable_with_plan`
+- [x] Fallback `not_recommended` + `payment_plan=none` when nothing safe & eligible (`amount_safe_to_pay` and any in-window earliest date still reported). First end-to-end run: status 18/25, method 20/25, 102/150 columns exact — all misses are estimate-noise cases (06/08/13/19/22 pessimistic, 11/21 optimistic) → Phase 7 tuning
+- [x] Amount formatting: match sample style — done in Phase 0 (`money.py`), used by `Decision.to_row()`
 
 ## Phase 6 — Explanation (`explain.py`) (~45 min)
 
