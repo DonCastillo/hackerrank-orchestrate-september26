@@ -104,12 +104,12 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 8 — Full run & submission (~1 h)
 
-- [ ] Run full dataset: `python3 code/main.py` → root `output.csv` (250 rows + header)
-- [ ] Run `validate.py` on the final `output.csv`
-- [ ] Generate `code/evaluation/usage_report.md` from `usage.jsonl`: providers, model names, call counts, input/output tokens, total & avg tokens per request, estimated total & per-request cost (per-model + overall)
-- [ ] Write `code/README.md`: setup (`pip install -r requirements.txt`, `.env`), run command, module overview, determinism/caching notes
-- [ ] Build `code.zip` (code/, README, evaluation/, cache/ so the run is reproducible; exclude `.env`); stale pre-`debit_once` cache files already pruned (231 current files; cached-only run verified with no API key)
-- [ ] Final check of `log.txt` (no secrets) — this is the `chat_transcript`
+- [x] Run full dataset: `python3 bootstrap.py` → root `output.csv` (250 rows + header) in ~1 s from cache (re-run once more right before zipping)
+- [x] Run `validate.py` on the final `output.csv` → VALID
+- [x] Generate `code/evaluation/usage_report.md` from `usage.jsonl` → 231 Opus 5 calls, 86k in / 31k out / 464k cache-read tokens, ≈ $1.46 total, $0.006 per request
+- [x] Write `code/README.md`: pipeline overview, setup/layout, run commands, reproducibility (zero-call cached run), tests, sample accuracy, key assumptions
+- [x] Build `code.zip` (bootstrap.py, pyproject.toml, REPRODUCE.md, .env.example, code/ incl. cache/ + evaluation/ + tests/ + README, plan/) — 263 files, 192 KB, no .env/.venv; verified by unzipping into a clean folder next to dataset/ and running without an API key: fresh venv, VALID, output.csv byte-identical
+- [x] Final check of `log.txt` (no secrets) — 0 key matches; 74 entries, all `tool=Claude Code`
 - [ ] Submit `code.zip`, `output.csv`, `log.txt` at https://www.hackerrank.com/contests/hackerrank-orchestrate-september26/challenges/buy-or-wait/submission
 
 ---
