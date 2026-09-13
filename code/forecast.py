@@ -1,8 +1,10 @@
 """Phase 3 — daily balance projection + safety checks over the forecast window.
 
-Ordering rule (plan/FINDINGS.md #6): on any given day, debits are applied before credits, so
-the day's low point is `balance_before + debits`. This is the financially safer reading and
-matches the samples (dining on payday counted before the salary lands).
+Ordering rule (plan/FINDINGS.md #6): on any given day, projected debits are applied first, then
+credits, then any *plan payment* the user makes that day. So the day has two low points — after
+the debits (before salary lands) and at close (after the user pays) — and both must stay above
+the minimum. This is the financially safer reading for expenses and matches the samples: dining
+on payday is counted before the salary, while "wait until payday" pays after it.
 """
 from __future__ import annotations
 
@@ -38,8 +40,8 @@ class SpendingChange:
 @dataclass(frozen=True)
 class DayPoint:
     on: date
-    low: Decimal        # balance after the day's debits, before its credits
-    close: Decimal      # balance at end of day
+    low: Decimal        # min(balance after the day's debits, balance at close)
+    close: Decimal      # balance at end of day (after credits and plan payments)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,20 +73,21 @@ def daily_ledger(state: FinancialState, payments: Iterable[Payment] = (),
     byday: dict[date, list[Decimal]] = defaultdict(list)
     for on, amt in _effective_flows(state, changes):
         byday[on].append(amt)
+    paid: dict[date, Decimal] = defaultdict(Decimal)
     for p in payments:
-        byday[p.on].append(-p.amount)
+        paid[p.on] += p.amount
     rd, end = state.request.request_date, state.window_end
     bal = state.opening_balance
     points: list[DayPoint] = [DayPoint(rd, bal, bal)]
-    for d in sorted(byday):
+    for d in sorted(set(byday) | set(paid)):
         if d < rd or d > end:
             continue
-        amts = byday[d]
+        amts = byday.get(d, ())
         debits = sum((a for a in amts if a < 0), Decimal(0))
         credits = sum((a for a in amts if a > 0), Decimal(0))
-        low = bal + debits
-        bal = low + credits
-        points.append(DayPoint(d, low, bal))
+        after_debits = bal + debits
+        bal = after_debits + credits - paid.get(d, Decimal(0))
+        points.append(DayPoint(d, min(after_debits, bal), bal))
     return points
 
 
@@ -96,19 +99,48 @@ def minimum_balance(state: FinancialState, payments: Iterable[Payment] = (),
 
 
 # --------------------------------------------------------------------------- #
-# Step 3–5: safety, safe amount, earliest full-payment date  (next step)
+# Step 3–5: safety, safe amount, earliest full-payment date
 # --------------------------------------------------------------------------- #
 
-def is_safe(state: FinancialState, payments: list[Payment], changes: list[SpendingChange] = ()) -> bool:
-    """True iff balance never drops below minimum_balance_to_keep across the window."""
-    raise NotImplementedError("Phase 3 step 3")
+def is_safe(state: FinancialState, payments: Iterable[Payment] = (), changes: Iterable[SpendingChange] = ()) -> bool:
+    """True iff the balance never drops below minimum_balance_to_keep across the window."""
+    low, _ = minimum_balance(state, payments, changes)
+    return low >= state.profile.minimum_balance_to_keep
 
 
-def amount_safe_on(state: FinancialState, on: date) -> Decimal:
-    """Largest single payment on `on` (no spending changes) that keeps the window safe, floored at 0."""
-    raise NotImplementedError("Phase 3 step 4")
+def headroom_on(state: FinancialState, on: date, changes: Iterable[SpendingChange] = ()) -> Decimal:
+    """Largest single payment on `on` that keeps every later day (and `on` itself) at or above the
+    minimum. A payment on `on` lowers every balance from `on` onward by the same amount, so the
+    answer is the suffix-minimum of the daily lows from `on` minus the minimum to keep."""
+    pts = daily_ledger(state, [Payment(on, Decimal(0))], changes)   # zero payment => a point on `on`
+    # On `on` itself the payment lands after that day's credits, so only the close matters there.
+    suffix_low = min(p.close if p.on == on else p.low for p in pts if p.on >= on)
+    return suffix_low - state.profile.minimum_balance_to_keep
 
 
-def earliest_full_payment_date(state: FinancialState, amount: Decimal) -> Optional[date]:
-    """First date in the window where a single payment of `amount` is safe, or None."""
-    raise NotImplementedError("Phase 3 step 5")
+def amount_safe_on(state: FinancialState, on: Optional[date] = None) -> Decimal:
+    """`amount_safe_to_pay`: headroom on request_date with no spending changes, clamped to
+    [0, requested_amount]."""
+    on = on or state.request.request_date
+    room = headroom_on(state, on)
+    return max(Decimal(0), min(state.request.requested_amount, room))
+
+
+def earliest_full_payment_date(state: FinancialState, amount: Optional[Decimal] = None,
+                               changes: Iterable[SpendingChange] = (),
+                               not_before: Optional[date] = None) -> Optional[date]:
+    """First date in the window on which a single payment of `amount` is safe, or None.
+
+    Headroom is non-decreasing in the payment date (a later payment skips earlier dips), and it
+    only changes on days with movement, so it suffices to test request_date plus every day that
+    follows a ledger point.
+    """
+    amount = state.request.requested_amount if amount is None else amount
+    rd, end = state.request.request_date, state.window_end
+    candidates = {rd} | {p.on for p in daily_ledger(state, (), changes)}
+    for on in sorted(d for d in candidates if d <= end):
+        if not_before and on < not_before:
+            continue
+        if headroom_on(state, on, changes) >= amount:
+            return on
+    return None

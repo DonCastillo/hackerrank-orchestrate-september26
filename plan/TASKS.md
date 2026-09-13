@@ -62,10 +62,10 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 - [x] Build a daily ledger from `request_date` to `request_date + 90 days` → `forecast.daily_ledger()`: opening balance + every flow (pending reserves are dated flows), debits before credits on each day, `DayPoint(low, close)` per active day
 - [x] Add projected recurring debits/credits, scheduled events, and evidence-driven adjustments → all come in via `state.flows`; `SpendingChange`s (stop / reduce_to) are applied to the recurring occurrences of the named event's series in `_effective_flows()`; verified on request_18 (stop streaming +68, reduce to 34 +34)
-- [ ] `is_safe(plan_payments, spending_changes)` → true iff min balance over the whole window ≥ `minimum_balance_to_keep` after every projected essential expense and plan payment
-- [ ] `amount_safe_to_pay` = max amount payable on `request_date` (no spending changes) that keeps the window safe, capped at `requested_amount`, floored at 0 (binary search or direct: min-over-window headroom)
-- [ ] `earliest_date_for_full_payment` = first date in the window where a single full payment is safe without spending changes (empty if none)
-- [ ] Verify against samples: request_01 (affordable_now), request_03/04 (wait), request_05/10 (not_affordable), request_19 (partial)
+- [x] `is_safe(plan_payments, spending_changes)` → true iff min balance over the whole window ≥ `minimum_balance_to_keep` after every projected essential expense and plan payment (plan payments land after that day's credits — paying *on* payday is allowed; fixed a one-day-late bug)
+- [x] `amount_safe_to_pay` = `forecast.amount_safe_on()`: suffix-minimum of daily lows from the payment date − min_keep, clamped to [0, requested] (direct, no search)
+- [x] `earliest_date_for_full_payment` = `forecast.earliest_full_payment_date()`: first candidate day (request_date + every ledger day) whose headroom ≥ requested; None if none in the window
+- [x] Verify against samples: earliest date exact on 10/18 labelled rows (01/03/04/07/09/12/16/18/22/23); safe exact on the 4 capped rows, within noise elsewhere; remaining gaps are message-dependent (06/08/13/21 → Phase 4) or estimate noise (02/17/19 → Phase 7)
 
 ## Phase 4 — Evidence layer: messages + images (`evidence.py`) (~2 h)
 
