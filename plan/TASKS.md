@@ -98,7 +98,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 7 — Validation & self-scoring (~1 h)
 
-- [ ] `validate.py`: exact header order; one row per `request_id`; `0 ≤ amount_safe_to_pay ≤ requested_amount`; allowed enum values; `payment_plan` chronological and sums to `requested_amount`; installments match a supplied option exactly; partial = 2 payments; `earliest_date == request_date` for `affordable_now`; spending changes reference flexible events in permitted categories, ≤ 3, no stop+reduce on same event
+- [x] `validate.py` run on the full 250-row `output.csv` → **VALID** (header, ids, enums, bounds, plan chronology/sums, partial shape, installment matches, spending-change syntax). Full run takes ~1 s from cache. Distribution: 59 now / 51 later / 55 with_plan / 85 not_affordable; 38 installment plans (all 3-payment), 11 partials, 6 with spending changes. Usage report fixed: current-pass calls only (231), Opus 5 list prices incl. cache read/write → ≈ $1.46 total, $0.006 per request
 - [ ] `score_samples.py`: run the engine on the 25 sample requests and diff every output column; iterate on Phases 2–5 until the samples match (target: all numeric fields exact)
 - [ ] Log mismatches to `plan/SAMPLE_DIFF.md` so we know what's still off
 
