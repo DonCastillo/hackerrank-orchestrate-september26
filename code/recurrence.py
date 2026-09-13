@@ -32,6 +32,10 @@ STALE_FACTOR = Decimal("1.6")
 SUPPRESS_DAYS = 3
 RECENT_N = 6                 # how many recent rows feed the variable estimate
 VARIABLE_ESTIMATE = "median" # median | mean | max  (tunable via score_samples)
+# Tuned on the 25 samples (plan/SAMPLE_DIFF.md): the reference forecasts the frequent small
+# purchases (weekly / biweekly groceries, transport, dining) about 10 % below their recent median.
+# Applied only to N-day series; monthly variable bills and constant items are not scaled.
+SHORT_CADENCE_SCALE = Decimal("0.9")
 
 
 @dataclass(frozen=True)
@@ -114,6 +118,8 @@ def detect_series(history: list, one_off_ids: set[str], request_date: date, wind
         amounts = [-h.amount for h in rows]
         constant = len(set(amounts[-3:])) == 1
         amount = amounts[-1] if constant else _estimate(amounts)
+        if not constant and cad[0] == "days":
+            amount = q(amount * SHORT_CADENCE_SCALE)
 
         occ: list[date] = []
         if cad[0] == "monthly":

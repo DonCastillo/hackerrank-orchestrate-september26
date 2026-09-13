@@ -99,8 +99,8 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 ## Phase 7 — Validation & self-scoring (~1 h)
 
 - [x] `validate.py` run on the full 250-row `output.csv` → **VALID** (header, ids, enums, bounds, plan chronology/sums, partial shape, installment matches, spending-change syntax). Full run takes ~1 s from cache. Distribution: 59 now / 51 later / 55 with_plan / 85 not_affordable; 38 installment plans (all 3-payment), 11 partials, 6 with spending changes. Usage report fixed: current-pass calls only (231), Opus 5 list prices incl. cache read/write → ≈ $1.46 total, $0.006 per request
-- [ ] `score_samples.py`: run the engine on the 25 sample requests and diff every output column; iterate on Phases 2–5 until the samples match (target: all numeric fields exact)
-- [ ] Log mismatches to `plan/SAMPLE_DIFF.md` so we know what's still off
+- [x] `score_samples.py`: 102 → **118/150 columns, 22/25 statuses** after a grid search over the estimator (statistic × window × scale × staleness × same-day order × request-date inclusion); adopted `SHORT_CADENCE_SCALE = 0.9` (weekly/biweekly variable series) and `SAME_DAY_ORDER = credits_first` — the only settings that raised matches without raising error. Exact numeric match is not attainable (see FINDINGS.md)
+- [x] Log mismatches to `plan/SAMPLE_DIFF.md` — 4 threshold cases (06/11/21/19) + amount-only diffs; before/after table and what was deliberately not tuned
 
 ## Phase 8 — Full run & submission (~1 h)
 

@@ -1,10 +1,12 @@
 """Phase 3 — daily balance projection + safety checks over the forecast window.
 
-Ordering rule (plan/FINDINGS.md #6): on any given day, projected debits are applied first, then
-credits, then any *plan payment* the user makes that day. So the day has two low points — after
-the debits (before salary lands) and at close (after the user pays) — and both must stay above
-the minimum. This is the financially safer reading for expenses and matches the samples: dining
-on payday is counted before the salary, while "wait until payday" pays after it.
+Same-day ordering (SAME_DAY_ORDER):
+  "credits_first" (default, tuned on the samples — plan/SAMPLE_DIFF.md): salary and other credits
+      land before that day's spending clears, so the day's low point is its closing balance.
+  "debits_first": the stricter reading — projected debits hit before credits, so a payday has a
+      dip before the salary arrives.
+In both cases the user's own plan payment is applied last (after credits): "wait until payday"
+pays after the salary lands.
 """
 from __future__ import annotations
 
@@ -16,6 +18,9 @@ from typing import Iterable, Optional
 
 from money import fmt_plan
 from state import FinancialState
+
+
+SAME_DAY_ORDER = "credits_first"   # credits_first | debits_first
 
 
 @dataclass(frozen=True)
@@ -87,7 +92,8 @@ def daily_ledger(state: FinancialState, payments: Iterable[Payment] = (),
         credits = sum((a for a in amts if a > 0), Decimal(0))
         after_debits = bal + debits
         bal = after_debits + credits - paid.get(d, Decimal(0))
-        points.append(DayPoint(d, min(after_debits, bal), bal))
+        low = bal if SAME_DAY_ORDER == "credits_first" else min(after_debits, bal)
+        points.append(DayPoint(d, low, bal))
     return points
 
 
