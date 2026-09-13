@@ -93,8 +93,8 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 6 — Explanation (`explain.py`) (~45 min)
 
-- [ ] Template explanations that mirror sample phrasing per method (full/partial/installments/wait/not_recommended, with/without spending changes), including currency, amounts, dates, and the minimum balance figure
-- [ ] Optional LLM polish pass (Haiku 4.5 / Sonnet 5) constrained to the facts in the template; skip if time is short
+- [x] Template explanations → `explain.py`: one template per outcome (full, full + changes naming the expense, wait, partial, installments, two not_recommended variants — the 'Although X is available today' wording when the user only considers partial), currency formatting with thousands separators, long-form dates. 14/18 byte-identical to labels where the plan matches; the rest are alternate organiser phrasings or safe-amount noise
+- [x] Optional LLM polish pass — **skipped by design**: templates already match the labels, and an LLM rewrite could only introduce numbers the engine didn't compute
 
 ## Phase 7 — Validation & self-scoring (~1 h)
 
