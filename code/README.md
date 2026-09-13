@@ -23,7 +23,7 @@ All money math is deterministic Python (stdlib only). The model is used solely t
 
 ## Setup
 
-Requires Python ≥ 3.10. Unzip so that `bootstrap.py`, `code/` and the provided `dataset/` folder sit side by side:
+Requires Python ≥ 3.10. Unzip anywhere — `bootstrap.py`, `code/` and `dataset/` sit side by side inside the archive:
 
 ```text
 .
@@ -32,7 +32,7 @@ Requires Python ≥ 3.10. Unzip so that `bootstrap.py`, `code/` and the provided
 ├── REPRODUCE.md        # step-by-step reproduction guide
 ├── .env.example
 ├── code/               # this package (+ cache/, evaluation/, tests/)
-└── dataset/            # the challenge data (not included in code.zip)
+└── dataset/            # the challenge data (included in code.zip; replace with your copy if you have one)
 ```
 
 Optional — only needed to interpret evidence that is **not** already cached:
