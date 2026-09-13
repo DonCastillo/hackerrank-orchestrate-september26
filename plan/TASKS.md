@@ -80,12 +80,12 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 5 — Plan generation & ranking (`planner.py`) (~2 h)
 
-- [ ] Enumerate candidate plans:
-  - [ ] `full_payment` on `request_date` (only if user considers `full_payment`)
-  - [ ] `full_payment` with spending changes (stop/reduce flexible events in permitted categories, max 3, stop and reduce on different events, `reduce_to` ≥ `minimum_allowed_amount`)
-  - [ ] `partial_payment`: exactly two payments — `amount_safe_to_pay` on `request_date`, remainder on `earliest_date_for_full_payment`; only if `allows_partial_payment`, user considers it, `0 < safe < requested`, and second date ≤ `desired_completion_date`
-  - [ ] `installments`: each supplied installment option, expanded to `first_payment_date + k*frequency_days` × `number_of_payments`; reject if user doesn't consider installments, if months > `max_installment_months`, or if the schedule is unsafe / completes after `desired_completion_date`
-  - [ ] `wait`: full payment on `earliest_date_for_full_payment` if ≤ `desired_completion_date`… and also handle the sample pattern where `wait` is recommended on the deadline itself (request_03, 08, 13, 18, 23) — verify how the samples treat wait-date vs deadline
+- [x] Enumerate candidate plans → `planner.enumerate_candidates()` (each checked with `is_safe` + completes-by-deadline; rejection reason recorded):
+  - [x] `full_payment` on `request_date` (only if user considers `full_payment`)
+  - [x] `full_payment` with spending changes: each permitted flexible series gets its mildest action (`reduce_to` its minimum if reducible, else `stop`); brute-force subsets of size 1–3, pick the fewest changes that make it safe, tie-break least disruption (matches request_06 single stop / request_21 stop+reduce pattern)
+  - [x] `partial_payment`: exactly two payments — `amount_safe_to_pay` on `request_date`, remainder on `earliest_date_for_full_payment` (§6.2); only if `allows_partial_payment`, user considers it, `0 < safe < requested`, second date ≤ deadline (always safe when both hold — verified over all 275 requests)
+  - [x] `installments`: each supplied option expanded to `first_payment_date + k×frequency_days`; rejected if user doesn't consider installments, `number_of_payments > max_installment_months`, unsafe, or completes after the deadline
+  - [x] `wait`: full payment on `earliest_date_for_full_payment` if ≤ deadline (samples confirm wait dates = payday or deadline)
 - [ ] Rank safe plans by: completes by deadline → no spending changes → lowest total paid → earliest start → fewer payments → lowest `payment_option_id`
 - [ ] Derive `affordability_status` from the chosen plan (`affordable_now` / `affordable_with_plan` / `affordable_later` / `not_affordable`)
 - [ ] Fallback `not_recommended` + `payment_plan=none` when nothing safe & eligible
