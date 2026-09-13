@@ -76,7 +76,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 - [x] Cache every LLM response to `code/cache/*.json` keyed by content hash (system prompt + content + schema) — 235 files; a repeat call makes no API request
 - [x] Record per-call usage (model, input/output, cache read/write tokens) into `code/cache/usage.jsonl` — full pass: 235 calls, 89.9k in / 31.9k out / 434k cache-read ≈ $1.50
 - [x] Add a `--no-llm` fallback that ignores evidence — `gather_amendments(use_llm=False)` returns an empty set; `build_state()` accepts `None`
-- [ ] Spot-check amendments for sample users against sample outputs (e.g. request_03 image → event_253 amount)
+- [x] Spot-check amendments for sample users against sample outputs → all 23 sample-user items classified correctly (17 messages, 6 images); effects verified (request_02 earliest → Sep 15, request_08 safe 0 → 299.25, request_20 telecom bill reserved). Two regressions found and fixed: image-backed rows are now one-offs for recurrence (request_17 grocery series had vanished) and the salary pay-day anchors on the modal day-of-month (request_03 payslip dated Aug 31 had shifted paydays to the 30th)
 
 ## Phase 5 — Plan generation & ranking (`planner.py`) (~2 h)
 

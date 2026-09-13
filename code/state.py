@@ -187,6 +187,9 @@ def classify_events(ds: Dataset, profile: Profile, request: Request,
         if amount is None and amounts and e.event_id in amounts:
             amount, currency = amounts[e.event_id]
             e = Event(**{**e.__dict__, "amount": amount, "currency": currency})
+            # image-backed rows are one-off documents (bulk buys, invoices, a payslip copy):
+            # they count toward cash, never toward recurrence detection
+            st.one_off_ids.add(e.event_id)
         if amount is None:
             st.unresolved.append(e)
             st.notes.append(f"{e.event_id}: blank amount ({e.status} {e.direction} {e.category}) — awaiting image evidence")
@@ -341,7 +344,12 @@ def project_salary(ds: Dataset, st: FinancialState, amends: list = ()) -> None:
     elif len(payroll) >= 2 and payroll[-1].event.description not in PAYROLL_ENDING:
         last = payroll[-1].event
         amount, currency = last.amount, last.currency
-        anchor = payroll[-1].on
+        # pay-day = the dominant day-of-month of recent payroll rows (a stray off-cycle row must
+        # not move the anchor); anchor on the latest row that falls on that day
+        from collections import Counter
+        recent = payroll[-6:]
+        day = Counter(h.on.day for h in recent).most_common(1)[0][0]
+        anchor = next(h.on for h in reversed(recent) if h.on.day == day)
         basis = f"latest payroll {last.event_id}"
     elif payroll or salary_amends:
         # single row / ended series: only an explicit message can restart the series
