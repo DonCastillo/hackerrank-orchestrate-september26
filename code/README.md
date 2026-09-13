@@ -64,6 +64,12 @@ Equivalent without the launcher: `python3 -m venv .venv && .venv/bin/pip install
   Classifications were identical across two independent passes.
 - Secrets are read from environment variables (`.env` via `python-dotenv`) only; nothing is hard-coded.
 
+## Tools
+
+`code/tools/` holds the scripts behind the analysis: `dump_request.py` (inspect one request end to end),
+`tune_samples.py` and `tune_structural.py` (the grid searches that set `SHORT_CADENCE_SCALE` and `SAME_DAY_ORDER`).
+Run them from the repo root with the venv Python; they need no API key.
+
 ## Tests
 
 ```bash
