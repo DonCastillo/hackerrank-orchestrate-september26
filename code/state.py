@@ -237,14 +237,79 @@ def build_state(ds: Dataset, request: Request, amendments: Optional[dict] = None
     Recurrence projection (steps 4–7) is added in later steps.
     """
     profile = ds.profiles[request.user_id]
-    st = classify_events(ds, profile, request)
+    amends = list(amendments.for_user(profile.user_id, request.request_id)) if amendments else []
+    st = classify_events(ds, profile, request, amounts=amendments.event_amounts if amendments else None)
     project_recurring_debits(ds, st)
-    project_salary(ds, st)
+    apply_debit_amendments(ds, st, amends)
+    project_salary(ds, st, amends)
+    apply_credit_amendments(ds, st, amends)
     st.flows.sort(key=lambda f: (f.on, f.source_event_id))
     return st
 
 
-def project_salary(ds: Dataset, st: FinancialState) -> None:
+# --------------------------------------------------------------------------- #
+# Phase 4 — applying evidence amendments
+# --------------------------------------------------------------------------- #
+
+def apply_debit_amendments(ds: Dataset, st: FinancialState, amends: list) -> None:
+    """debit_pct: scale every projected occurrence of that category's series (lease renewal)."""
+    for a in amends:
+        if a.action != "debit_pct":
+            continue
+        factor = (Decimal(100) + a.percent) / Decimal(100)
+        n = 0
+        new_flows = []
+        for f in st.flows:
+            if f.kind == "recurring" and f.category == a.category:
+                f = CashFlow(**{**f.__dict__, "amount": q(f.amount * factor)})
+                n += 1
+            new_flows.append(f)
+        st.flows = new_flows
+        st.notes.append(f"{a.source}: {a.category} scaled by {a.percent:+}% on {n} projected occurrences")
+
+
+def apply_credit_amendments(ds: Dataset, st: FinancialState, amends: list) -> None:
+    """credit_once / debit_once: one confirmed one-off movement on a stated date.
+
+    A credit outside the window is dropped (never counted early). A confirmed loss dated
+    before the request is still owed against today's balance, so it is reserved on request_date
+    — the financially safer reading."""
+    rd, end = st.request.request_date, st.window_end
+    for a in amends:
+        if a.action not in ("credit_once", "debit_once"):
+            continue
+        on = a.on
+        if a.action == "credit_once" and not (rd <= on <= end):
+            st.notes.append(f"{a.source}: one-off credit {a.amount} {a.currency} on {on} is outside the window")
+            continue
+        if a.action == "debit_once":
+            if on > end:
+                st.notes.append(f"{a.source}: one-off loss {a.amount} {a.currency} on {on} is beyond the window")
+                continue
+            on = max(on, rd)
+        home = convert(ds, a.amount, a.currency, st.profile.home_currency, on)
+        st.flows.append(CashFlow(
+            on=on, amount=home if a.action == "credit_once" else -home,
+            source_event_id=a.source, category="salary" if a.action == "credit_once" else "loss",
+            essential=True, flexibility="fixed", minimum_allowed_amount=None, kind=a.action,
+        ))
+        st.notes.append(f"{a.source}: one-off {'credit' if a.action == 'credit_once' else 'loss'} {a.amount} {a.currency} on {on}")
+
+
+def _regular_salary(payroll: list) -> tuple[Decimal, str]:
+    """Regular pay = the most common recent payroll amount (ties -> latest). Used after a temporary
+    reduction expires: a `salary_next` message means the latest row is the exception, not the rule."""
+    from collections import Counter
+    recent = payroll[-6:]
+    counts = Counter((h.event.amount, h.event.currency) for h in recent)
+    best = max(counts.values())
+    for h in reversed(recent):
+        if counts[(h.event.amount, h.event.currency)] == best:
+            return h.event.amount, h.event.currency
+    raise ValueError("no payroll rows")
+
+
+def project_salary(ds: Dataset, st: FinancialState, amends: list = ()) -> None:
     """Step 7 — project confirmed monthly salary through the window.
 
     Amount and pay-day come from the scheduled `Next confirmed salary` row when present, otherwise
@@ -261,6 +326,14 @@ def project_salary(ds: Dataset, st: FinancialState) -> None:
     scheduled = [f for f in st.flows if f.kind == "scheduled" and f.category == "salary" and f.amount > 0]
     sched_event = ds.events_by_id[scheduled[-1].source_event_id] if scheduled else None
 
+    salary_amends = [a for a in amends if a.action.startswith("salary_")]
+
+    if any(a.action == "salary_end" for a in salary_amends):
+        # employment / contract ended: drop the scheduled row too if the message post-dates it
+        st.flows = [f for f in st.flows if not (f.kind == "scheduled" and f.category == "salary")]
+        st.notes.append("salary: not projected — employer message says employment ended")
+        return
+
     if sched_event is not None:
         amount, currency = sched_event.amount, sched_event.currency
         anchor = cash_date(sched_event)
@@ -270,31 +343,66 @@ def project_salary(ds: Dataset, st: FinancialState) -> None:
         amount, currency = last.amount, last.currency
         anchor = payroll[-1].on
         basis = f"latest payroll {last.event_id}"
+    elif payroll or salary_amends:
+        # single row / ended series: only an explicit message can restart the series
+        starts = [a for a in salary_amends if a.action == "salary_set" and a.on]
+        if not starts:
+            reason = ("no payroll history" if not payroll
+                      else f"series ended ({payroll[-1].event.description})" if payroll[-1].event.description in PAYROLL_ENDING
+                      else "single payroll row without a scheduled successor")
+            st.notes.append(f"salary: not projected — {reason}")
+            return
+        a = starts[-1]
+        amount, currency, anchor, basis = a.amount, a.currency, a.on, f"message {a.source}"
+        anchor = a.on
+        # the message's date is itself the first occurrence
+        anchor_is_first = True
     else:
-        reason = ("no payroll history" if not payroll
-                  else f"series ended ({payroll[-1].event.description})" if payroll[-1].event.description in PAYROLL_ENDING
-                  else "single payroll row without a scheduled successor")
-        st.notes.append(f"salary: not projected — {reason}")
+        st.notes.append("salary: not projected — no payroll history")
         return
+    anchor_is_first = locals().get("anchor_is_first", False)
+
+    # --- amendments on an existing series -------------------------------------------------
+    regular = (amount, currency)
+    next_only: list[tuple[Decimal, str]] = []
+    for a in salary_amends:
+        if a.action == "salary_set":
+            amount, currency = a.amount, a.currency
+            regular = (amount, currency)
+            if a.on and a.on >= rd and not anchor_is_first:
+                anchor, anchor_is_first = a.on, True
+            basis += f" +{a.source}:set"
+        elif a.action == "salary_next":
+            next_only = [(a.amount, a.currency)] * (a.count or 1)
+            regular = _regular_salary(payroll) if payroll else regular
+            basis += f" +{a.source}:next"
+        elif a.action == "salary_date":
+            anchor, anchor_is_first = a.on, True
+            # the scheduled row (if any) moves with it
+            st.flows = [f for f in st.flows if not (f.kind == "scheduled" and f.category == "salary")]
+            basis += f" +{a.source}:date"
 
     from recurrence import add_months
-    src = sched_event.event_id if sched_event is not None else payroll[-1].event.event_id
-    k, dates = 1, []
+    src = sched_event.event_id if sched_event is not None else (payroll[-1].event.event_id if payroll else "message")
+    dates = []
+    k = 0 if anchor_is_first else 1
     while True:
         d = add_months(anchor, k)
         if d > end:
             break
-        if d >= rd:
+        if d >= rd and not any(f.kind == "scheduled" and f.category == "salary" and f.on == d for f in st.flows):
             dates.append(d)
         k += 1
-    for d in dates:
+    for i, d in enumerate(dates):
+        amt, cur = (next_only[i] if i < len(next_only) else regular)
         st.flows.append(CashFlow(
-            on=d, amount=convert(ds, amount, currency, st.profile.home_currency, d),
+            on=d, amount=convert(ds, amt, cur, st.profile.home_currency, d),
             source_event_id=src, category="salary", essential=True, flexibility="fixed",
             minimum_allowed_amount=None, kind="salary",
         ))
-    st.salary = {"amount": amount, "currency": currency, "day": anchor.day, "basis": basis, "dates": dates}
-    st.notes.append(f"salary: {amount} {currency} on day {anchor.day} from {basis} -> {len(dates)} projected")
+    st.salary = {"amount": regular[0], "currency": regular[1], "day": anchor.day, "basis": basis, "dates": dates}
+    st.notes.append(f"salary: {regular[0]} {regular[1]} on day {anchor.day} from {basis} -> {len(dates)} projected"
+                    + (f" (next {len(next_only)} at {next_only[0][0]})" if next_only else ""))
 
 
 def project_recurring_debits(ds: Dataset, st: FinancialState) -> None:

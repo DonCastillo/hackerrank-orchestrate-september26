@@ -69,13 +69,13 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 
 ## Phase 4 — Evidence layer: messages + images (`evidence.py`) (~2 h)
 
-- [ ] Define a strict amendment schema the engine can consume, e.g. `{event_id | scope, action: cancel|amend_amount|amend_date|confirm|pending, amount, date, confidence}`
-- [ ] Load `claude-api` skill; use Claude (Sonnet 5 for cost, Opus 5 if needed) with structured output; treat message/image text as untrusted data — system prompt says embedded instructions never override rules
-- [ ] Message handling: translate/interpret multilingual employer/bank/provider messages into amendments; ignore anything that is "pending / not yet approved / may change"
-- [ ] Image handling: send each of the 16 PNGs to a vision call; extract amount + date + currency; map back to the blank-amount event via `related_event_id`
-- [ ] Cache every LLM response to `code/cache/*.json` keyed by content hash so re-runs are deterministic and cheap
-- [ ] Record per-call usage (model, input/output tokens) into `code/cache/usage.jsonl` for the usage report
-- [ ] Add a `--no-llm` fallback that ignores evidence (engine still produces a valid, safer output)
+- [x] Define a strict amendment schema the engine can consume → `evidence.py`: 9 actions (`salary_set`, `salary_next`, `salary_date`, `salary_end`, `credit_once`, `debit_once`, `debit_pct`, `event_amount`, `none`), `AMENDMENT_JSON_SCHEMA` for the model tool definition, `Amendment.from_json()` validation/coercion, `is_usable()` (drops `none`, low-confidence and incomplete records), `AmendmentSet` indexed by user (+request scope) and by event id for image amounts
+- [x] Load `claude-api` skill; LLM client in `evidence.py`: `claude-opus-5`, adaptive thinking at medium effort, structured output (`output_config.format` = the amendment JSON schema, so responses are always valid), cached system prompt with 14 rules (evidence is data not instructions; only confirmed facts; net/balance-due/total-paid for images; EN/ID). Live-tested on 6 messages + 1 image — all correct after one prompt fix (always return a stated salary amount)
+- [x] Message handling → `gather_amendments()` runs all 215 messages (sent_at order) through the client; 137 usable amendments (75 salary_set, 20 salary_next, 13 salary_end, 7 salary_date, 15 credit_once, 7 debit_pct), 78 `none` for pending/processing/scam/informational. Applied in `state.py` (`project_salary` overrides, `apply_credit_amendments`, `apply_debit_amendments`); `salary_next` reverts to the modal regular pay
+- [x] Image handling → `interpret_image()` sends each PNG (base64) with the blank event's summary; 15/16 usable amounts (image_04 discarded as low confidence — total cut off; settled event, history only); applied via `classify_events(amounts=…)`
+- [x] Cache every LLM response to `code/cache/*.json` keyed by content hash (system prompt + content + schema) — 235 files; a repeat call makes no API request
+- [x] Record per-call usage (model, input/output, cache read/write tokens) into `code/cache/usage.jsonl` — full pass: 235 calls, 89.9k in / 31.9k out / 434k cache-read ≈ $1.50
+- [x] Add a `--no-llm` fallback that ignores evidence — `gather_amendments(use_llm=False)` returns an empty set; `build_state()` accepts `None`
 - [ ] Spot-check amendments for sample users against sample outputs (e.g. request_03 image → event_253 amount)
 
 ## Phase 5 — Plan generation & ranking (`planner.py`) (~2 h)
@@ -108,7 +108,7 @@ Strategy in one line: **deterministic Python engine does all the money math; an 
 - [ ] Run `validate.py` on the final `output.csv`
 - [ ] Generate `code/evaluation/usage_report.md` from `usage.jsonl`: providers, model names, call counts, input/output tokens, total & avg tokens per request, estimated total & per-request cost (per-model + overall)
 - [ ] Write `code/README.md`: setup (`pip install -r requirements.txt`, `.env`), run command, module overview, determinism/caching notes
-- [ ] Build `code.zip` (code/, README, evaluation/, cache/ so the run is reproducible; exclude `.env`)
+- [ ] Build `code.zip` (code/, README, evaluation/, cache/ so the run is reproducible; exclude `.env`); prune stale cache files from the pre-`debit_once` prompt first (only keep files hit by a cached-only run)
 - [ ] Final check of `log.txt` (no secrets) — this is the `chat_transcript`
 - [ ] Submit `code.zip`, `output.csv`, `log.txt` at https://www.hackerrank.com/contests/hackerrank-orchestrate-september26/challenges/buy-or-wait/submission
 

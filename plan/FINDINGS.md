@@ -137,6 +137,8 @@ users; 116 of the 250 requests have at least one message. Every message is one o
 | financial_service | investment sale proceeds settled in cash account | settled credit already in balance |
 | financial_service | wallet charged for EV session, receipt has amount | image-backed event |
 
+Note: no message in the dataset describes a confirmed theft / recalled credit, but the schema carries a `debit_once` action for that case (confirmed unexpected loss → reserved on request_date; unverified claims stay `none`).
+
 Implication for Phase 4: the LLM prompt can ask for a classification into these actions with a strict JSON schema
 (`action`, `event_id`/`scope`, `amount`, `currency`, `date`, `count`, `percent`) — no free-form interpretation needed.
 Indonesian messages use the same templates verbatim (`gaji … naik menjadi`, `masih menunggu`, `sudah dikonfirmasi`).
